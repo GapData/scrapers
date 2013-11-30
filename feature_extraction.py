@@ -1,7 +1,8 @@
-from sklearn import svm
-from sklearn import linear_model
-from urllib2 import urlopen
-from collections import Counter
+from sklearn         import svm
+from sklearn         import linear_model
+from urllib2         import urlopen
+from collections     import Counter
+from sklearn.cluster import KMeans
 
 import copy
 import json
@@ -244,12 +245,16 @@ def location_clustering_country(location_dataset, data_point):
 def location_clustering_distance(dataset, data_point, k_clusters=10):
 
   # BEGIN_YOUR_CODE (around ??? lines of code expected)
-  def haversine(lon1, lat1, lon2, lat2):
+  def haversine(pt1,pt2):
     """
     Calculate the great circle distance between two points 
     on the earth (specified in decimal degrees)
     """
-    # convert decimal degrees to radians 
+    # convert decimal degrees to radians
+    lon1 = pt1['location_longitude']
+    lat1 = pt1['location_latitude']
+    lon2 = pt2['location_longitude']
+    lat2 = pt2['location_latitude'] 
     lon1, lat1, lon2, lat2 = map(math.radians, [lon1, lat1, lon2, lat2])
     # haversine formula 
     dlon = lon2 - lon1 
@@ -259,10 +264,49 @@ def location_clustering_distance(dataset, data_point, k_clusters=10):
     km = 6367 * c
     return km 
 
-  def kmeans_cluster_by_distance(data, k_val): #TODO: write clustering for haversine clusters
+  def kmeans_cluster_by_distance(data, k_val): 
     cluster_mapping = {}
+
+    centroids = random.sample(data, k_val)
+    
+    iters = 100
+    while iters > 0:
+      iters -= 1
+      clusters = dict()
+      for centroid in centroids:
+        clusters[(centroid['location_longitude'],centroid['location_latitude'])] = set()
+
+      for datum in data:
+        if datum in centroids:
+          best_datum, best_dist = datum, 0
+        else:
+          best_datum, best_dist = centroids[0], haversine(datum, centroids[0])
+          for centroid in centroids[1:]:
+            if haversine(datum, centroid) < best_dist:
+              best_datum, best_dist = centroid, haversine(datum, centroid)
+        clusters[(best_datum['location_longitude'],best_datum['location_latitude'])].add(datum)
+
+      new_centroids = []
+      for key, cluster in clusters.iteritems():
+        best_datum, best_dist = None, float("inf")
+        for datum in cluster:
+          # lowest sum of distance
+          dist = sum([ haversine(datum, pt) for pt in cluster ])
+          if dist < best_dist:
+            best_datum, best_dist = datum, dist
+        new_centroids.append(best_datum)
+
+      if sorted(new_centroids) == sorted(centroids):
+        break
+      else:
+        centroids = new_centroids
+
+    clusters_listified = [ list(clusters[key]) for key in clusters.keys() ]
+    clusters_listified = sorted(clusters_listified, key=len(points))
     for i in xrange(k_val):
-      cluster_mapping[i] = None
+      cluster_mapping[i] = clusters_listified[i]
+      print "Cluster "+str(i)+" has "+str(len(clusters_listified[i]))+" points."
+
     return cluster_mapping
   
   if !IS_CREATED_CLUSTERS:
