@@ -1,12 +1,23 @@
 from sklearn import svm
 from sklearn import linear_model
+from urllib2 import urlopen
+from collections import Counter
 
 import copy
+import json
 import math
 import numpy as np
 
-DEFAULT_TSV_FILE = 'instascrape.tsv'
-DATUM_SPLIT_SIZE = 18
+DEFAULT_TSV_FILE            = 'instascrape.tsv'
+DATUM_SPLIT_SIZE            = 18
+
+IS_CREATED_COUNTRIES        = False
+COUNTRIES_LIST              = []
+
+IS_CREATED_CLUSTERS         = False
+HAVERSINE_CLUSTERS          = {}
+
+OVERESTIMATE_COUNTRY_NUMBER = 200
 
 # INDIVIDUAL KEYS IN EACH DATA POINT DICT
 #
@@ -73,7 +84,6 @@ def extract_from_tsv(filename=DEFAULT_TSV_FILE, max_limit = None):
       for n in xrange(DATUM_SPLIT_SIZE):
         data_chunk = None
         key_name   = key_names[n]
-
 
         if   n == 0:
           data_chunk = str(d[n])
@@ -179,15 +189,95 @@ def sentiment_analysis():
 
 
 
-# 'location clustering' w/ longitude, latitude, location name
+# 'location clustering' by country in which it is located
 
-def location_clustering():
+def location_clustering_country(location_dataset, data_point):
 
   # BEGIN_YOUR_CODE (around ??? lines of code expected)
-  raise Exception("Not implemented yet")
+  def get_place(lat, lon):
+    """
+    Determine the country to which the latitude and
+    longitude belong to, or return None
+    """
+    url = "http://maps.googleapis.com/maps/api/geocode/json?"
+    url += "latlng=%s,%s&sensor=false" % (lat, lon)
+    v = urlopen(url).read()
+    j = json.loads(v)
+    components = j['results'][0]['address_components']
+    country = town = None
+    for c in components:
+        if "country" in c['types']:
+            country = c['long_name']
+        if "postal_town" in c['types']:
+            town = c['long_name']
+    #return town, country
+    return country
+
+  def create_total_countries_list(dataset):
+    countries_dict = Counter()
+    for datum in dataset:
+      latitude  = datum['location_latitude']
+      longitude = datum['location_longitude']
+      country   = get_place(latitude, longitude)
+      countries_dict[country] += 1
+    countries_list = countries_dict.keys()
+    return sorted(countries_list)
+
+  if !IS_CREATED_COUNTRIES:
+    COUNTRIES_LIST = create_total_countries_list(location_dataset)
+    IS_CREATED_COUNTRIES = True
+
+  country_vector = [0] * OVERESTIMATE_COUNTRY_NUMBER
+  latitude  = data_point['location_latitude']
+  longitude = data_point['location_longitude']
+  country   = get_place(latitude, longitude)
+  country_vector[COUNTRIES_LIST.index(country)] = 1
+
   # END_YOUR_CODE
   
-  return None
+  return country_vector
+
+
+
+# 'location cluster' by haversine distance between lon/lat
+
+def location_clustering_distance(dataset, data_point, k_clusters=10):
+
+  # BEGIN_YOUR_CODE (around ??? lines of code expected)
+  def haversine(lon1, lat1, lon2, lat2):
+    """
+    Calculate the great circle distance between two points 
+    on the earth (specified in decimal degrees)
+    """
+    # convert decimal degrees to radians 
+    lon1, lat1, lon2, lat2 = map(math.radians, [lon1, lat1, lon2, lat2])
+    # haversine formula 
+    dlon = lon2 - lon1 
+    dlat = lat2 - lat1 
+    a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+    c = 2 * math.asin(math.sqrt(a)) 
+    km = 6367 * c
+    return km 
+
+  def kmeans_cluster_by_distance(data, k_val): #TODO: write clustering for haversine clusters
+    cluster_mapping = {}
+    for i in xrange(k_val):
+      cluster_mapping[i] = None
+    return cluster_mapping
+  
+  if !IS_CREATED_CLUSTERS:
+    HAVERSINE_CLUSTERS  = kmeans_cluster_by_distance(dataset, k_clusters)
+    IS_CREATED_CLUSTERS = True
+
+  cluster_vector = [0] * k_clusters
+  for key, points in HAVERSINE_CLUSTERS.items():
+    if data_point in points:
+      cluster_vector[key] = 1
+      break
+
+  # END_YOUR_CODE
+  
+  return cluster_vector
 
 
 
@@ -205,7 +295,7 @@ def image_relevancy():
 
 # 'association rules' w/ image, filter, location
 
-def association_rules():
+def association_rules(): #TODO: change to decision tree
 
   # BEGIN_YOUR_CODE (around ??? lines of code expected)
   raise Exception("Not implemented yet")
@@ -256,6 +346,11 @@ def apply_machine_learning_algorithm(x_dataset, y_dataset, ml_func=linear_model.
 
   split_point = int(len(x_dataset)*split_proportion)
 
+  # permute dataset first #TODO: permute dataset
+  #TODO: automatic k-fold cross-validation and stats output
+  #TODO: training vs. testing graph by iteration
+  # perhaps a good time for 2D PCA #TODO: add pca graphing
+
   X_train = np.array(x_dataset[split_point:-1])
   Y_train = np.array(y_dataset[split_point:-1])
   X_test  = np.array(x_dataset[0:split_point])
@@ -270,7 +365,9 @@ def apply_machine_learning_algorithm(x_dataset, y_dataset, ml_func=linear_model.
 
 
 
-
+# 1) geolocation clustering
+# 2) longitude/latitude k-means clustering
+# 3) decision tree
 
 
 # NOTES: 
@@ -291,5 +388,5 @@ def apply_machine_learning_algorithm(x_dataset, y_dataset, ml_func=linear_model.
 # 'network measurements' w/ followed/follows ids
 # 'burstiness' w/ comment (time,text) tuples
 
-
+#TODO: autorun style function for quick execution of location vs. no location, etc.
 
