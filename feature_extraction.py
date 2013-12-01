@@ -7,6 +7,7 @@ from sklearn.cluster import KMeans
 import copy
 import json
 import math
+import random
 import numpy as np
 
 DEFAULT_TSV_FILE            = 'instascrape.tsv'
@@ -59,7 +60,8 @@ OVERESTIMATE_COUNTRY_NUMBER = 200
 # score = fe.apply_machine_learning_algorithm(x_data, y_data) 
 # print score
 
-
+# loc = fe.location_tagged_dataset(fe.extract_from_tsv())
+# vec = fe.location_clustering_distance(loc,loc[0])
 
 def extract_from_tsv(filename=DEFAULT_TSV_FILE, max_limit = None):
   f         = open(filename, 'r')
@@ -224,7 +226,10 @@ def location_clustering_country(location_dataset, data_point):
     countries_list = countries_dict.keys()
     return sorted(countries_list)
 
-  if !IS_CREATED_COUNTRIES:
+  global IS_CREATED_COUNTRIES
+  global COUNTRIES_LIST
+
+  if not IS_CREATED_COUNTRIES:
     COUNTRIES_LIST = create_total_countries_list(location_dataset)
     IS_CREATED_COUNTRIES = True
 
@@ -251,10 +256,10 @@ def location_clustering_distance(dataset, data_point, k_clusters=10):
     on the earth (specified in decimal degrees)
     """
     # convert decimal degrees to radians
-    lon1 = pt1['location_longitude']
-    lat1 = pt1['location_latitude']
-    lon2 = pt2['location_longitude']
-    lat2 = pt2['location_latitude'] 
+    lon1 = float(pt1['location_longitude'])
+    lat1 = float(pt1['location_latitude'])
+    lon2 = float(pt2['location_longitude'])
+    lat2 = float(pt2['location_latitude'])
     lon1, lat1, lon2, lat2 = map(math.radians, [lon1, lat1, lon2, lat2])
     # haversine formula 
     dlon = lon2 - lon1 
@@ -267,34 +272,41 @@ def location_clustering_distance(dataset, data_point, k_clusters=10):
   def kmeans_cluster_by_distance(data, k_val): 
     cluster_mapping = {}
 
-    centroids = random.sample(data, k_val)
+    centroids = random.sample(range(len(data)), k_val)
     
     iters = 100
     while iters > 0:
+      print iters
       iters -= 1
       clusters = dict()
       for centroid in centroids:
-        clusters[(centroid['location_longitude'],centroid['location_latitude'])] = set()
+        #key = frozenset((float(centroid['location_longitude']),float(centroid['location_latitude'])))
+        #clusters[key] = set()
+        clusters[centroid] = []
 
-      for datum in data:
-        if datum in centroids:
-          best_datum, best_dist = datum, 0
+      print clusters.keys() ##################################################
+
+      for ind in range(len(data)):
+        if ind in centroids:
+          best_ind, best_dist = ind, 0
         else:
-          best_datum, best_dist = centroids[0], haversine(datum, centroids[0])
+          best_ind, best_dist = 0, float("inf")
           for centroid in centroids[1:]:
-            if haversine(datum, centroid) < best_dist:
-              best_datum, best_dist = centroid, haversine(datum, centroid)
-        clusters[(best_datum['location_longitude'],best_datum['location_latitude'])].add(datum)
+            if haversine(data[ind], data[centroid]) < best_dist:
+              best_ind, best_dist = centroid, haversine(data[ind], data[centroid])
+        #key = frozenset((float(best_datum['location_longitude']),float(best_datum['location_latitude'])))
+        #print key
+        clusters[best_ind].append(ind)
 
       new_centroids = []
       for key, cluster in clusters.iteritems():
-        best_datum, best_dist = None, float("inf")
-        for datum in cluster:
+        best_ind, best_dist = 0, float("inf")
+        for ind in cluster:
           # lowest sum of distance
-          dist = sum([ haversine(datum, pt) for pt in cluster ])
+          dist = sum([ haversine(data[ind], data[pt]) for pt in cluster ])
           if dist < best_dist:
-            best_datum, best_dist = datum, dist
-        new_centroids.append(best_datum)
+            best_ind, best_dist = ind, dist
+        new_centroids.append(best_ind)
 
       if sorted(new_centroids) == sorted(centroids):
         break
@@ -309,13 +321,17 @@ def location_clustering_distance(dataset, data_point, k_clusters=10):
 
     return cluster_mapping
   
-  if !IS_CREATED_CLUSTERS:
+  global IS_CREATED_CLUSTERS
+  global HAVERSINE_CLUSTERS
+
+  if not IS_CREATED_CLUSTERS:
     HAVERSINE_CLUSTERS  = kmeans_cluster_by_distance(dataset, k_clusters)
     IS_CREATED_CLUSTERS = True
 
   cluster_vector = [0] * k_clusters
   for key, points in HAVERSINE_CLUSTERS.items():
-    if data_point in points:
+    ind = dataset.index(data_point)
+    if ind in points:
       cluster_vector[key] = 1
       break
 
@@ -339,7 +355,7 @@ def image_relevancy():
 
 # 'association rules' w/ image, filter, location
 
-def association_rules(): #TODO: change to decision tree
+def association_rules():
 
   # BEGIN_YOUR_CODE (around ??? lines of code expected)
   raise Exception("Not implemented yet")
@@ -378,7 +394,7 @@ def create_feature_vector(dataset, target_variable="likes_count", extractor_func
 
 
 
-def apply_machine_learning_algorithm(x_dataset, y_dataset, ml_func=linear_model.LinearRegression(), split_proportion=0.20):
+def apply_machine_learning_algorithm(x_dataset, y_dataset, ml_func=linear_model.LinearRegression(), split_proportion=0.20, permute=False, cross_validate=False):
   # Assumes the use of a ML supervised algorithm
   # Split proportion governs how much to reserve for test set
   # We will also introduce k-folds cross-validation when we have time to let this run for a while
@@ -387,18 +403,31 @@ def apply_machine_learning_algorithm(x_dataset, y_dataset, ml_func=linear_model.
   # we will need to permute the datasets before splitting, since
   # the data was collected (an assumption with the scraper) in
   # chronological order - need to avoid "hidden recency" correlations with a naive split
+  #
+  # Try:
+  # Linear Regression
+  # Decision Tree
+  # SVM
 
   split_point = int(len(x_dataset)*split_proportion)
 
-  # permute dataset first #TODO: permute dataset
   #TODO: automatic k-fold cross-validation and stats output
   #TODO: training vs. testing graph by iteration
   # perhaps a good time for 2D PCA #TODO: add pca graphing
 
   X_train = np.array(x_dataset[split_point:-1])
   Y_train = np.array(y_dataset[split_point:-1])
+
+  if permute:
+    random.seed(37)
+    random.shuffle(X_train)
+    random.seed(37)
+    random.shuffle(Y_train)
+
   X_test  = np.array(x_dataset[0:split_point])
   Y_test  = np.array(y_dataset[0:split_point])
+
+
 
   ml_func.fit(X_train, Y_train)
 
@@ -415,8 +444,6 @@ def apply_machine_learning_algorithm(x_dataset, y_dataset, ml_func=linear_model.
 
 
 # NOTES: 
-# 
-# try PCA to 2 dimensions for some data component
 #
 # OBVIOUS FEATURES:
 #
@@ -432,5 +459,5 @@ def apply_machine_learning_algorithm(x_dataset, y_dataset, ml_func=linear_model.
 # 'network measurements' w/ followed/follows ids
 # 'burstiness' w/ comment (time,text) tuples
 
-#TODO: autorun style function for quick execution of location vs. no location, etc.
+#TODO: autorun style function for quick execution of location vs. no location, etc., does LinReg, DecTre, SVM with location vs. no location, graphs everything for easy comparison, and auto-ablation with selective feature creation
 
