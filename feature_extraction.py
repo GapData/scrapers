@@ -2,6 +2,7 @@ from sklearn         import svm
 from sklearn         import linear_model
 from urllib2         import urlopen
 from collections     import Counter
+from sklearn         import cross_validation
 from sklearn.cluster import KMeans
 
 import copy
@@ -699,24 +700,12 @@ def create_feature_vector(dataset, target_variable="likes_count", extractor_func
 
 
 
-def apply_machine_learning_algorithm(x_dataset, y_dataset, ml_func=linear_model.LinearRegression(), split_proportion=0.20, permute=False, cross_validate=False):
-  # Assumes the use of a ML supervised algorithm
-  # Split proportion governs how much to reserve for test set
-  # We will also introduce k-folds cross-validation when we have time to let this run for a while
-  #
-  # IMPORTANT NOTE: the data is naively split right now, but first
-  # we will need to permute the datasets before splitting, since
-  # the data was collected (an assumption with the scraper) in
-  # chronological order - need to avoid "hidden recency" correlations with a naive split
-  #
-  # Try:
-  # Linear Regression
-  # Decision Tree
-  # SVM
+def apply_machine_learning_algorithm(x_dataset, y_dataset, ml_func=linear_model.LinearRegression(), split_proportion=0.20, permute=False, k_folds=5):
 
-  scores = { "Train Score": None,
+
+  scores = { "Train Score"     : None,
              "K-Fold Dev Score": None,
-             "Test Score": None }
+             "Test Score"      : None }
 
   split_point = int(len(x_dataset)*split_proportion)
 
@@ -736,25 +725,42 @@ def apply_machine_learning_algorithm(x_dataset, y_dataset, ml_func=linear_model.
 
   ml_func.fit(X_train, Y_train)
 
+  k_scores = cross_validation.cross_val_score(ml_func, X_train, Y_train, cv=k_folds)
+
   scores["Train Score"]      = ml_func.score(X_train,Y_train)
+  scores["K-Fold Dev Score"] = k_scores.mean()
   scores["Test Score"]       = ml_func.score(X_test,Y_test)
-  scores["K-Fold Dev Score"] = None #TODO
 
   return scores
 
 
 
-def auto_ablation_scoring_breakdown():
+def multi_algorithm_mega_run(x_dataset, y_dataset, ml_funcs, split_proportion=0.20, k_folds=5):
+  '''
+  Intended to run a lot of algorithms, on both permuted and 
+  unpermuted data, to see which produces the best/most stable
+  results under general conditions. Good for making graphs too.
+  '''
+
+  # Try:
+  # Linear Regression
+  # Decision Tree
+  # SVM
   return None
 
 
 
-def multi_algorithm_mega_run():
+def auto_ablation_scoring_breakdown(dataset, extractor_funcs, ml_func, target_variable="likes_count", split_proportion=0.20, k_folds=5, permute=False):
+  '''
+  Intended to run one algorithm with very specific parameters,
+  in order to analyze features individually and determine which
+  features contribute how much improvement beyond our baseline.
+  '''
   return None
 
 
 
-# 1) geolocation clustering
+# 1) geolocation clustering jank style
 # 2) longitude/latitude k-means clustering
 # 3) decision tree
 
@@ -769,11 +775,7 @@ def multi_algorithm_mega_run():
 # user_followed_by_count
 # user_follows_count
 # user_media_count
-#
-# EXPERIMENTAL FEATURES:
-#
-# 'network measurements' w/ followed/follows ids
-# 'burstiness' w/ comment (time,text) tuples
+
 
 #TODO: autorun style function for quick execution of location vs. no location, etc., does LinReg, DecTre, SVM with location vs. no location, graphs everything for easy comparison, and auto-ablation with selective feature creation, training/testing output scores
 
