@@ -252,23 +252,7 @@ FILTERS_COUNT            = {}
 # "user_followed_by_ids_encoding"  -> list of ints
 # "user_follows_ids_encoding"      -> list of ints
 
-# QUICK RUN THROUGH GUIDE
-# Basically, assuming the instascrape.tsv is in the same directory as this file, here's what you'd enter in a terminal:
-#
-# python
-# import feature_extraction as fe
-# data = fe.extract_from_tsv()
-# location_data  = fe.location_tagged_dataset(data)
-# x_data, y_data = fe.create_feature_vector(fe.extract_from_tsv()) # it's here where we input a list of feature extractors, right now it's a default if you see the definition below
-# score = fe.apply_machine_learning_algorithm(x_data, y_data) 
-# print score
 
-# dat = fe.extract_from_tsv()
-# vec = fe.filter_selection(dat,dat[0])
-# vec = fe.filter_rarity(dat,dat[0])
-# loc = fe.location_tagged_dataset(fe.extract_from_tsv())
-# vec = fe.location_clustering_country(loc,loc[0])
-# vec = fe.location_clustering_distance(loc,loc[0])
 
 def extract_from_tsv(filename=DEFAULT_TSV_FILE, max_limit = None):
   '''
@@ -382,7 +366,7 @@ def location_tagged_dataset(dataset):
 
 
 
-def basic_numerical_feature_extractor(data_point):
+def basic_numerical_feature_extractor(dataset, data_point):
   '''
   Extracts data that is already numerical in nature.
   '''
@@ -396,7 +380,7 @@ def basic_numerical_feature_extractor(data_point):
 
 
 
-def sentiment_analysis():
+def sentiment_analysis(dataset, data_point):
   '''
   Analyzes textual data such as tags, captions, and comments to
   generate a feature vector.
@@ -405,7 +389,7 @@ def sentiment_analysis():
 
 
 
-def location_cluster_nearest_capital():
+def location_cluster_nearest_capital(dataset, data_point):
   '''
   Analyzes location dataset and creates a binary feature vector
   corresponding to each country's capital, assigning each data
@@ -500,7 +484,7 @@ def filter_rarity(dataset, data_point):
 
 
 
-def image_relevancy():
+def image_relevancy(dataset, data_point):
   '''
   Generates a value corresponding to image relevancy, using data
   such as last comment time, image creation time, comment count,
@@ -523,7 +507,7 @@ def create_feature_vector(dataset, target_variable="likes_count", extractor_func
     x_datum = []
 
     for extractor_func in extractor_funcs:
-      x_datum.append(extractor_func(datum))
+      x_datum.append(extractor_func(dataset, datum))
 
     x_datum = [ sub_datum for sub_x_datum in x_datum for sub_datum in sub_x_datum ]
     x_data.append(x_datum)
@@ -533,7 +517,7 @@ def create_feature_vector(dataset, target_variable="likes_count", extractor_func
 
 
 
-def apply_machine_learning_algorithm(x_dataset, y_dataset, ml_func=linear_model.LinearRegression(), split_proportion=0.20, permute=False, k_folds=5, graph_pca=True):
+def apply_machine_learning_algorithm(x_dataset, y_dataset, ml_func=linear_model.LinearRegression(), split_proportion=0.20, permute=False, k_folds=5, graph_pca=True, pca_preprocess=False):
   '''
   Applies an input machine learning algorithm to an x and y dataset,
   with optional custom inputs for handling split proportion, k-fold
@@ -570,12 +554,12 @@ def apply_machine_learning_algorithm(x_dataset, y_dataset, ml_func=linear_model.
     for ind in xrange(len(y_data)):
       print ind
       plt.hold(True)
-
+      # TODO: implement heatmap style coloring instead of single color intensity
       if x1_data[ind] < lower_x1 or x1_data[ind] > upper_x1 or x2_data[ind] < lower_x2 or x2_data[ind] > upper_x2:
         excluded += 1
       else:
         intensity = 0.20 + ((float(y_data[ind] - y_minpt) / float(y_range)) * 0.80)
-        plt.plot(x1_data[ind], x2_data[ind], 'r.', alpha=intensity)
+        plt.plot(x1_data[ind], x2_data[ind], 'r+', alpha=intensity)
     print str(excluded) + " points excluded."
 
     plt.xlim(lower_x1,upper_x1)
@@ -592,16 +576,20 @@ def apply_machine_learning_algorithm(x_dataset, y_dataset, ml_func=linear_model.
   split_point = int(len(x_dataset)*split_proportion)
 
   if graph_pca:
-    graph_pca_data(x_dataset[0:25000], y_dataset[0:25000])
+    graph_pca_data(x_dataset[0:5000], y_dataset[0:5000])
 
-  X_train = np.array(x_dataset[split_point:-1])
-  Y_train = np.array(y_dataset[split_point:-1])
+  if pca_preprocess:
+    nonsensical_filler = "NONSENSE"
+    # TODO: implement preprocess
 
   if permute:
     random.seed(37)
-    random.shuffle(X_train)
+    random.shuffle(x_dataset)
     random.seed(37)
-    random.shuffle(Y_train)
+    random.shuffle(y_dataset)
+
+  X_train = np.array(x_dataset[split_point:-1])
+  Y_train = np.array(y_dataset[split_point:-1])
 
   X_test  = np.array(x_dataset[0:split_point])
   Y_test  = np.array(y_dataset[0:split_point])
@@ -618,29 +606,67 @@ def apply_machine_learning_algorithm(x_dataset, y_dataset, ml_func=linear_model.
 
 
 
-def multi_algorithm_mega_run(x_dataset, y_dataset, ml_funcs, split_proportion=0.20, k_folds=5):
+def multi_algorithm_mega_run(x_dataset, y_dataset, ml_funcs, split_prop=0.20, num_k_folds=5):
   '''
   Intended to run a lot of algorithms, on both permuted and 
-  unpermuted data, location inclusive and exclusive data,
+  unpermuted data,
   to see which produces the best/most stable results under 
   general conditions. Good for making graphs too.
   '''
-  # TODO: implement all run combinations
+  multi_scores = {}
 
+  for learn_func in ml_funcs:
+    trial_name = str(learn_func.__class__.__name__) + ", no permutation"
+    multi_scores[trial_name] = {}
+    multi_scores[trial_name] = apply_machine_learning_algorithm(x_dataset, 
+                                                              y_dataset, 
+                                                              ml_func=learn_func, 
+                                                              split_proportion=split_prop, 
+                                                              permute=False, 
+                                                              k_folds=num_k_folds, 
+                                                              graph_pca=False)
+
+  for learn_func in ml_funcs:
+    trial_name = str(learn_func.__class__.__name__) + ", w/ permutation"
+    multi_scores[trial_name] = {}
+    multi_scores[trial_name] = apply_machine_learning_algorithm(x_dataset, 
+                                                              y_dataset, 
+                                                              ml_func=learn_func, 
+                                                              split_proportion=split_prop, 
+                                                              permute=True, 
+                                                              k_folds=num_k_folds, 
+                                                              graph_pca=False)
+
+  # PROBABLY TRY:
   # Linear Regression
   # Decision Tree
   # SVM
-  return None
+  # ^ all of above with PCA at varying dimensions
+  return multi_scores
 
 
 
-def auto_ablation_scoring_breakdown(dataset, extractor_funcs, ml_func, target_variable="likes_count", split_proportion=0.20, k_folds=5, permute=False):
+def auto_ablation_scoring_breakdown(dataset, extraction_funcs, learn_func=linear_model.LinearRegression(), target="likes_count", split_prop=0.20, num_k_folds=5, permutation=False):
   '''
   Intended to run one algorithm with very specific parameters,
   in order to analyze features individually and determine which
   features contribute how much improvement beyond our baseline.
   '''
-  # TODO: implement ablative feature removal and feedback
-  return None
+  ablation_scores = {}
+
+  for i in xrange(len(extraction_funcs), 0, -1):
+    extraction_func_names = [ extraction_func.__name__ for extraction_func in extraction_funcs[0:i] ]
+    extraction_func_names = ', '.join(extraction_func_names)
+    x_data, y_data = create_feature_vector(dataset, target_variable=target, extractor_funcs=extraction_funcs[0:i])
+    ml_scores = apply_machine_learning_algorithm(x_data,
+                                                 y_data,
+                                                 ml_func=learn_func,
+                                                 split_proportion=split_prop,
+                                                 permute=permutation,
+                                                 k_folds=num_k_folds,
+                                                 graph_pca=False)
+    ablation_scores[extraction_func_names] = ml_scores
+
+  return ablation_scores
 
 
