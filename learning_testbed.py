@@ -3,6 +3,7 @@ import feature_extraction as fe
 
 # IMPORT other necessities
 from sklearn import linear_model
+from sklearn import tree
 
 # GET entire dataset
 data = fe.extract_from_tsv()
@@ -20,7 +21,8 @@ x_data, y_data = fe.create_feature_vector(data, extractor_funcs=extraction_funct
 fe.apply_machine_learning_algorithm(x_data, y_data)
 
 # GET multiple run score data with supplied learning functions
-learning_functions = [linear_model.LinearRegression()]
+learning_functions = [linear_model.LinearRegression(),
+                      tree.DecisionTreeRegressor()]
 multiscores = fe.multi_algorithm_mega_run(x_data, y_data, learning_functions)
 
 print "|======================================|"
