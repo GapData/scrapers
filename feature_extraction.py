@@ -1,15 +1,18 @@
-from sklearn         import svm
-from sklearn         import linear_model
-from urllib2         import urlopen
-from collections     import Counter
-from sklearn         import cross_validation
-from sklearn.cluster import KMeans
+from scipy                 import stats
+from sklearn               import svm
+from sklearn               import linear_model
+from urllib2               import urlopen
+from collections           import Counter
+from sklearn               import cross_validation
+from sklearn.cluster       import KMeans
+from sklearn.decomposition import PCA
 
 import copy
 import json
 import math
 import random
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 
@@ -256,8 +259,7 @@ FILTERS_COUNT            = {}
 # import feature_extraction as fe
 # data = fe.extract_from_tsv()
 # location_data  = fe.location_tagged_dataset(data)
-# feature_vector = fe.create_feature_vector(data) # it's here where we input a list of feature extractors, right now it's a default if you see the definition below
-# x_data, y_data = feature_vector
+# x_data, y_data = fe.create_feature_vector(fe.extract_from_tsv()) # it's here where we input a list of feature extractors, right now it's a default if you see the definition below
 # score = fe.apply_machine_learning_algorithm(x_data, y_data) 
 # print score
 
@@ -531,19 +533,66 @@ def create_feature_vector(dataset, target_variable="likes_count", extractor_func
 
 
 
-def apply_machine_learning_algorithm(x_dataset, y_dataset, ml_func=linear_model.LinearRegression(), split_proportion=0.20, permute=False, k_folds=5):
+def apply_machine_learning_algorithm(x_dataset, y_dataset, ml_func=linear_model.LinearRegression(), split_proportion=0.20, permute=False, k_folds=5, graph_pca=True):
   '''
   Applies an input machine learning algorithm to an x and y dataset,
   with optional custom inputs for handling split proportion, k-fold
-  cross-validation, and dataset permutation.
+  cross-validation, dataset permutation. Also graphs PCA-reduced data.
   '''
+  def graph_pca_data(x_data, y_data, lower_lim=10, upper_lim=90):
+    '''
+    Reduces data using PCA, then graphs PCA-reduced data on x1 and x2
+    axes, plotting target variable as an intensity-influenced color;
+    data on the fringes of percentile scoring are discarded for clarity.
+    '''
+    pca_x_data = PCA(n_components=2).fit_transform(copy.deepcopy(x_data))
+
+    x1_data = []
+    x2_data = []
+    y_minpt = min(y_data)
+    y_maxpt = max(y_data)
+    y_range = y_maxpt - y_minpt
+
+    for pca_datum in pca_x_data:
+      x1_data.append(pca_datum[0])
+      x2_data.append(pca_datum[1])
+
+    x1_arr = np.array(x1_data)
+    x2_arr = np.array(x2_data)
+
+    lower_x1 = stats.scoreatpercentile(x1_arr, lower_lim)
+    upper_x1 = stats.scoreatpercentile(x1_arr, upper_lim)
+    lower_x2 = stats.scoreatpercentile(x2_arr, lower_lim)
+    upper_x2 = stats.scoreatpercentile(x2_arr, upper_lim)
+
+    plt.hold(True)
+    excluded = 0
+    for ind in xrange(len(y_data)):
+      print ind
+      plt.hold(True)
+
+      if x1_data[ind] < lower_x1 or x1_data[ind] > upper_x1 or x2_data[ind] < lower_x2 or x2_data[ind] > upper_x2:
+        excluded += 1
+      else:
+        intensity = 0.20 + ((float(y_data[ind] - y_minpt) / float(y_range)) * 0.80)
+        plt.plot(x1_data[ind], x2_data[ind], 'r.', alpha=intensity)
+    print str(excluded) + " points excluded."
+
+    plt.xlim(lower_x1,upper_x1)
+    plt.ylim(lower_x2,upper_x2)
+    plt.xlabel("PCA DIM ONE")
+    plt.ylabel("PCA DIM TWO")
+    plt.title("INTENSITY vs. PCA DIM [DARKER COLOR INDICATES HIGHER LIKE COUNT]")
+    plt.show()
+
   scores = { "Train Score"     : None,
              "K-Fold Dev Score": None,
              "Test Score"      : None }
 
   split_point = int(len(x_dataset)*split_proportion)
 
-  # TODO: implement PCA graphed data
+  if graph_pca:
+    graph_pca_data(x_dataset[0:25000], y_dataset[0:25000])
 
   X_train = np.array(x_dataset[split_point:-1])
   Y_train = np.array(y_dataset[split_point:-1])
