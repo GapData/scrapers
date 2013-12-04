@@ -32,27 +32,38 @@ print fe.apply_machine_learning_algorithm(x_data, y_data)
 print fe.apply_machine_learning_algorithm(x_data, y_data, pca_reduction=2)
 print "|======================================|"
 
-# GET multiple run score data with supplied learning functions, target variable likes_count
-learning_functions = [linear_model.LinearRegression(),
-                      tree.DecisionTreeRegressor()]#,
-                      #svm.SVR(C=1.0, epsilon=0.2)]
-multiscores = fe.multi_algorithm_mega_run(x_data, y_data, learning_functions)
+# # GET multiple run score data with supplied learning functions, target variable likes_count
+# learning_functions = [linear_model.LinearRegression(),
+#                       tree.DecisionTreeRegressor()]#,
+#                       #svm.SVR(C=1.0, epsilon=0.2)]
+# multiscores = fe.multi_algorithm_mega_run(x_data, y_data, learning_functions)
+
+# print "|======================================|"
+# print "Printing Multiple Scores (Target Variable: likes_count):"
+# print multiscores
+# print "|======================================|"
+
+# # GET multiple run score data with supplied learning functions, target variable likes_count/user_followed_by_count
+# learning_functions = [linear_model.LinearRegression(),
+#                       tree.DecisionTreeRegressor()]#,
+#                       #svm.SVR(C=1.0, epsilon=0.2)]
+# x_data, y_data = fe.create_feature_vector(data, target_variable="likes_normalized", extractor_funcs=extraction_functions)
+# multiscores = fe.multi_algorithm_mega_run(x_data, y_data, learning_functions)
+
+# print "|======================================|"
+# print "Printing Multiple Scores (Target Variable: likes_normalized):"
+# print multiscores
+# print "|======================================|"
+
+# GET ablative score analysis by removing one feature at a time
+extraction_functions = [fe.basic_numerical_feature_extractor,
+                        fe.filter_selection,
+                        fe.filter_rarity]
+ablationscores = fe.auto_ablation_scoring_breakdown(data, extraction_funcs=extraction_functions, learn_func=linear_model.LinearRegression(), permutation=False)
 
 print "|======================================|"
-print "Printing Multiple Scores (Target Variable: likes_count):"
-print multiscores
-print "|======================================|"
-
-# GET multiple run score data with supplied learning functions, target variable likes_count/user_followed_by_count
-learning_functions = [linear_model.LinearRegression(),
-                      tree.DecisionTreeRegressor()]#,
-                      #svm.SVR(C=1.0, epsilon=0.2)]
-x_data, y_data = fe.create_feature_vector(data, target_variable="likes_normalized", extractor_funcs=extraction_functions)
-multiscores = fe.multi_algorithm_mega_run(x_data, y_data, learning_functions)
-
-print "|======================================|"
-print "Printing Multiple Scores (Target Variable: likes_normalized):"
-print multiscores
+print "Printing Ablation Scores (LinearRegression):"
+print ablationscores
 print "|======================================|"
 
 # GET ablative score analysis by removing one feature at a time
@@ -62,7 +73,7 @@ extraction_functions = [fe.basic_numerical_feature_extractor,
 ablationscores = fe.auto_ablation_scoring_breakdown(data, extraction_funcs=extraction_functions, learn_func=tree.DecisionTreeRegressor(), permutation=True)
 
 print "|======================================|"
-print "Printing Ablation Scores:"
+print "Printing Ablation Scores (DecisionTree):"
 print ablationscores
 print "|======================================|"
 
@@ -91,6 +102,28 @@ ablationscores = fe.auto_ablation_scoring_breakdown(location_data, extraction_fu
 print "|======================================|"
 print "Printing Ablation Scores (w/ location-only data, i.e. 25% of dataset):"
 print ablationscores
+print "|======================================|"
+
+# GET sub-ablation score analysis by removing one sub-feature at a time
+extraction_functions = [fe.basic_numerical_feature_extractor,
+                        fe.filter_selection,
+                        fe.filter_rarity]
+subablationscores = fe.sub_numeric_feature_auto_ablation(data, extraction_funcs=extraction_functions, learn_func=linear_model.LinearRegression(), permutation=False)
+
+print "|======================================|"
+print "Printing Sub-Ablation Scores (LinearRegression):"
+print subablationscores
+print "|======================================|"
+
+# GET sub-ablation score analysis by removing one sub-feature at a time
+extraction_functions = [fe.basic_numerical_feature_extractor,
+                        fe.filter_selection,
+                        fe.filter_rarity]
+subablationscores = fe.sub_numeric_feature_auto_ablation(data, extraction_funcs=extraction_functions, learn_func=tree.DecisionTreeRegressor(), permutation=True)
+
+print "|======================================|"
+print "Printing Sub-Ablation Scores (DecisionTree):"
+print subablationscores
 print "|======================================|"
 
 

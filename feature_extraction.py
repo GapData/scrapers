@@ -727,7 +727,6 @@ def auto_ablation_scoring_breakdown(dataset, extraction_funcs, learn_func=linear
   features contribute how much improvement beyond our baseline.
   '''
   ablation_scores = {}
-  # TODO: sub-feature ablation as well, such as with basic values extractor
   for i in xrange(len(extraction_funcs), 0, -1):
     extraction_func_names = [ extraction_func.__name__ for extraction_func in extraction_funcs[0:i] ]
     extraction_func_names = ', '.join(extraction_func_names)
@@ -754,16 +753,55 @@ def sub_numeric_feature_auto_ablation(dataset, extraction_funcs, learn_func=line
   (4) user_follows_count
   Also assumes that the basic numerical extractor is first in the extractions.
   '''
-  return None
+  sub_names = ["image_comment_count","user_media_count","user_followed_by_count","user_follows_count"]
+  sub_ablation_scores {}
+  x_data, y_data = create_feature_vector(dataset, target_variable=target, extractor_funcs=extraction_funcs)
+  for i in xrange(len(sub_names), -1, -1):
+    sub_feature_names = [ name for name in sub_names[0:i] ]
+    sub_feature_names = ', '.join(sub_feature_names)
+    if i < len(sub_names):
+      for datum in x_data:
+        del datum[i]
+    print "||||||||SANITY CHECK FEATURE VECTOR||||||||"
+    print x_data[0][0:10]
+    ml_scores = apply_machine_learning_algorithm(x_data,
+                                                 y_data,
+                                                 ml_func=learn_func,
+                                                 split_proportion=split_prop,
+                                                 permute=permutation,
+                                                 k_folds=num_k_folds,
+                                                 graph_pca=False)
+    sub_ablation_scores[sub_feature_names] = ml_scores
+
+  return sub_ablation_scores
 
 
 
-def increasing_benefit_of_data_graph():
+def increasing_benefit_of_data_graph(x_dataset, y_dataset, learn_func, split_prop=0.20, permutation=False, num_k_folds=5, granularity=10):
   '''
   Takes entire dataset, and repeats best method for each learning algorithm,
-  starting with 1/10 of the data and increasing until all data is used
-  to plot the increase in accuracy that comes with increasing data.
+  starting with 1/granularity of the data and increasing until all data is 
+  used to plot the increase in accuracy that comes with increasing data.
   '''
+  scores = []
+  data_size = len(y_dataset)
+  percentages = [ float(float(segment) / float(granularity)) for segment in range(1,granularity+1) ]
+  end_indices = [ int(data_size * float(percentage)) for percentage in percentages ]
+
+  for end_ind in end_indices:
+    x_portion = copy.deepcopy(x_dataset[0:end_ind])
+    y_portion = copy.deepcopy(y_dataset[0:end_ind])
+
+    ml_scores = apply_machine_learning_algorithm(x_portion,
+                                                y_portion, 
+                                                ml_func=learn_func, 
+                                                split_proportion=split_prop, 
+                                                permute=permutation, 
+                                                k_folds=num_k_folds, 
+                                                graph_pca=False)
+    scores.append(ml_scores)
+  # TODO: graph these!
+
   return None
 
 
