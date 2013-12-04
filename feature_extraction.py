@@ -371,6 +371,7 @@ def basic_numerical_feature_extractor(dataset, data_point):
   '''
   Extracts data that is already numerical in nature.
   '''
+  # TODO: number of followers to media count ratio?
   feature_vector     = []
   numerics_data_keys = ["image_comment_count","user_media_count","user_followed_by_count","user_follows_count"]
 
@@ -444,7 +445,7 @@ def location_cluster_nearest_capital(dataset, data_point):
 
   if not IS_CREATED_CAPITAL_DICT:
     CAPITAL_DICT = country_capital_lat_lon_dict(COUNTRY_CAPITAL_LAT_LON)
-    print CAPITAL_DICT
+    #print CAPITAL_DICT
     IS_CREATED_CAPITAL_DICT = True
 
   alphabetical_country_list = sorted(CAPITAL_DICT.keys())
@@ -489,7 +490,7 @@ def filter_selection(dataset, data_point):
 
   if not IS_CREATED_FILTERS_LIST:
     FILTERS_LIST = alphabetical_filter_list(dataset)
-    print FILTERS_LIST
+    #print FILTERS_LIST
     IS_CREATED_FILTERS_LIST = True
 
   select_vector = [0] * len(FILTERS_LIST)
@@ -524,7 +525,7 @@ def filter_rarity(dataset, data_point):
 
   if not IS_CREATED_FILTERS_COUNT:
     FILTERS_COUNT = filter_individual_counts(dataset)
-    print FILTERS_COUNT
+    #print FILTERS_COUNT
     IS_CREATED_FILTERS_COUNT = True
 
   rarity_vector = []
@@ -562,7 +563,10 @@ def create_feature_vector(dataset, target_variable="likes_count", extractor_func
 
     x_datum = [ sub_datum for sub_x_datum in x_datum for sub_datum in sub_x_datum ]
     x_data.append(x_datum)
-    y_data.append(datum[target_variable])
+    if target_variable == "likes_normalized":
+      y_data.append(float(datum["likes_count"])/float(datum["user_followed_by_count"]))
+    else:
+      y_data.append(datum[target_variable])
 
   return (x_data,y_data)
 
@@ -620,10 +624,23 @@ def apply_machine_learning_algorithm(x_dataset, y_dataset, ml_func=linear_model.
     plt.title("INTENSITY vs. PCA DIM [DARKER COLOR INDICATES HIGHER LIKE COUNT]")
     plt.show()
 
+  def nrmsd(learn_func, input_data, target_data):
+    '''
+    Calculates root mean squared deviation of given predicted/true values.
+    '''
+    nrmsd_vec = []
+    num_vals = len(target_data)
+    for ind in xrange(num_vals):
+      nrmsd_vec.append( (float(learn_func.predict(input_data[ind])) - float(target_data[ind]))**2 )
+
+    nrmsd_val = (math.sqrt(float(sum(nrmsd_vec)) / float(num_vals))) / (float(max(target_data)) - float(min(target_data)))
+    return nrmsd_val
+
   scores = { "Train Score"     : None,
              "K-Fold Dev Score": None,
-             "Test Score"      : None }
-
+             "Test Score"      : None,
+             "Train NRMSD"     : None,
+             "Test NRMSD"      : None }
 
   x_dat = copy.deepcopy(x_dataset)
   y_dat = copy.deepcopy(y_dataset)
@@ -661,6 +678,8 @@ def apply_machine_learning_algorithm(x_dataset, y_dataset, ml_func=linear_model.
   scores["Train Score"]      = ml_func.score(X_train,Y_train)
   scores["K-Fold Dev Score"] = k_scores.mean()
   scores["Test Score"]       = ml_func.score(X_test,Y_test)
+  scores["Train NRMSD"]      = nrmsd(ml_func, X_train, Y_train)
+  scores["Test NRMSD"]       = nrmsd(ml_func, X_test, Y_test)
 
   return scores
 
@@ -697,11 +716,6 @@ def multi_algorithm_mega_run(x_dataset, y_dataset, ml_funcs, split_prop=0.20, nu
                                                               k_folds=num_k_folds, 
                                                               graph_pca=False)
 
-  # PROBABLY TRY:
-  # Linear Regression
-  # Decision Tree
-  # SVM
-  # ^ all of above with PCA at varying dimensions
   return multi_scores
 
 
@@ -713,7 +727,7 @@ def auto_ablation_scoring_breakdown(dataset, extraction_funcs, learn_func=linear
   features contribute how much improvement beyond our baseline.
   '''
   ablation_scores = {}
-
+  # TODO: sub-feature ablation as well, such as with basic values extractor
   for i in xrange(len(extraction_funcs), 0, -1):
     extraction_func_names = [ extraction_func.__name__ for extraction_func in extraction_funcs[0:i] ]
     extraction_func_names = ', '.join(extraction_func_names)
@@ -728,5 +742,29 @@ def auto_ablation_scoring_breakdown(dataset, extraction_funcs, learn_func=linear
     ablation_scores[extraction_func_names] = ml_scores
 
   return ablation_scores
+
+def sub_numeric_feature_auto_ablation(dataset, extraction_funcs, learn_func=linear_model.LinearRegression(), target="likes_count", split_prop=0.20, num_k_folds=5, permutation=False):
+  '''
+  Considering that the basic numerical feature extractor is the strongest
+  feature, this ablation only ablates one value from basic numerics at a
+  time, leaving other features completely intact. Basic numerics are:
+  (1) image_comment_count
+  (2) user_media_count
+  (3) user_followed_by_count
+  (4) user_follows_count
+  Also assumes that the basic numerical extractor is first in the extractions.
+  '''
+  return None
+
+
+
+def increasing_benefit_of_data_graph():
+  '''
+  Takes entire dataset, and repeats best method for each learning algorithm,
+  starting with 1/10 of the data and increasing until all data is used
+  to plot the increase in accuracy that comes with increasing data.
+  '''
+  return None
+
 
 
